@@ -32,17 +32,14 @@ const CheckMail = async (req, res) => {
         new: true,
       }
     );
-    
-    // Create the reset link
-    const resetLink = `http://localhost:5173/reset_password/${token}`;
-    
-    // Send email with simple subject "Reset Password Link" and just the link
     nodeMailer(
       req.body.email,
-      "Reset Password Link",
-      resetLink
+      "Password Reset",
+      `
+    <p>Change Account Password  ${req.body.email}</p>
+    <p><b>http://localhost:5173/reset?email=${req.body.email}&_token=${token}</b></p>
+    `
     );
-    
     res.status(200).json({
       status: "success",
       message: "Check your email please",
@@ -54,31 +51,26 @@ const CheckMail = async (req, res) => {
 };
 
 /* Reset password */
+
 const ResetPassword = async (req, res) => {
   try {
-    const { token } = req.params; // Changed from req.query to req.params
-    
-    if (token) {
-      // Decode token to get user info
-      const decoded = jwtDecode(token);
-      const email = decoded.email;
-      const current_date = Date.now() / 1000;
-      const expiresToken = decoded.exp;
-      
-      // Find user with this email and reset token
+    const { email, token } = req.query;
+
+    if (email && token) {
       const user = await UserModel.findOne({
         email,
         reset_token: token,
       });
-      
+
+      const decoded = jwtDecode(token);
+      const current_date = Date.now() / 1000;
+      const expiresToken = decoded.exp;
       if (expiresToken > current_date && user) {
         const { errors, isValid } = resetValidation(req.body);
-        
+        const hash = bcrypt.hashSync(req.body.password, 10);
         if (!isValid) {
           res.status(404).json(errors);
         } else {
-          const hash = bcrypt.hashSync(req.body.password, 10);
-          
           await UserModel.updateOne(
             {
               _id: user._id,
@@ -88,7 +80,6 @@ const ResetPassword = async (req, res) => {
               reset_token: "",
             }
           );
-          
           res.status(200).json({
             status: "success",
             message: "Password updated with success",
@@ -97,19 +88,18 @@ const ResetPassword = async (req, res) => {
       } else {
         return res
           .status(500)
-          .json({ password: "Error occurred please try again" });
+          .json({ password: "Error ocurred please try again" });
       }
     } else {
       return res
         .status(500)
-        .json({ password: "Error occurred please try again" });
+        .json({ password: "Error ocurred please try again" });
     }
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: error.message });
   }
 };
-
 module.exports = {
   CheckMail,
   ResetPassword,
